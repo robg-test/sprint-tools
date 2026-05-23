@@ -2,10 +2,23 @@ package pages
 
 import "github.com/robgtest/sprint-tools/internal"
 
-templ nameForm(action, title string) {
+templ nameForm(action, title string, isHost bool) {
 	<h1 class="text-4xl font-bold mb-2">{ title }</h1>
-	<p class="opacity-70 mb-6">Enter your name to join.</p>
-	<form method="post" action={ templ.URL(action) } class="flex gap-2 w-full max-w-md">
+	if isHost {
+		<p class="opacity-70 mb-6">Starting a new session. Enter your name.</p>
+	} else {
+		<p class="opacity-70 mb-6">Enter your name to join.</p>
+	}
+	<form
+		method="post"
+		action={ templ.URL(action) }
+		hx-boost="true"
+		hx-target="body"
+		hx-swap="innerHTML"
+		hx-push-url="false"
+		class="flex flex-col gap-3 w-full max-w-md"
+		onsubmit="var btns=this.querySelectorAll('button');setTimeout(function(){btns.forEach(function(b){b.disabled=true;b.classList.add('opacity-50');});},0)"
+	>
 		<input
 			type="text"
 			name="name"
@@ -13,17 +26,18 @@ templ nameForm(action, title string) {
 			maxlength="40"
 			autofocus
 			placeholder="Your name"
-			class="input input-bordered flex-1"
+			class="input input-bordered w-full"
 		/>
-		<button type="submit" class="btn btn-primary">Join</button>
+		<div class="flex gap-2 justify-center">
+			<button type="submit" name="role" value="play" class="btn btn-primary flex-1">Participating</button>
+			<button type="submit" name="role" value="watch" class="btn btn-outline flex-1">Watching</button>
+		</div>
 	</form>
 }
 
-templ sessionRoom(title, name, sessionURL, sessionID string, isHost bool, participants []string, participantsURL, workItemURL string, workItem *internal.WorkItem) {
-	<h1 class="text-4xl font-bold mb-2">{ title }</h1>
-	<p class="opacity-70 mb-6">Welcome, <span class="font-semibold">{ name }</span>.</p>
+templ sessionRoom(title, name, sessionURL, sessionID string, isHost, canVote bool, participants, watchers []string, voters map[string]bool, allVotes map[string]string, myVote string, participantsURL, workItemURL, eventsURL string, workItem *internal.WorkItem, cards []string) {
 	if isHost {
-		<div class="w-full max-w-3xl mb-6">
+		<div class="w-full max-w-7xl mb-3">
 			<label class="block text-sm opacity-70 mb-1">Share this link to invite others:</label>
 			<div class="join w-full">
 				<input
@@ -43,37 +57,43 @@ templ sessionRoom(title, name, sessionURL, sessionID string, isHost bool, partic
 			</div>
 		</div>
 	}
-	<div class="w-full max-w-3xl grid grid-cols-1 lg:grid-cols-3 gap-4">
-		<div class="lg:col-span-2">
-			if isHost {
-				@WorkItemForm(workItem, workItemURL)
-			} else {
-				<div
-					hx-get={ workItemURL }
-					hx-trigger="load delay:3s, every 3s"
-					hx-swap="innerHTML"
-				>
-					@WorkItemCard(workItem)
-				</div>
-			}
+	<div class="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-4 gap-6">
+		<div class="lg:col-span-3 work-item-slot" data-work-item-url={ workItemURL } data-events-url={ eventsURL }>
+			@WorkItemSlot(workItem, participants, watchers, voters, allVotes, myVote, isHost, canVote, workItemURL, cards)
 		</div>
 		<div
 			hx-get={ participantsURL }
 			hx-trigger="load delay:3s, every 3s"
 			hx-swap="innerHTML"
 		>
-			@ParticipantsList(participants)
+			@ParticipantsList(participants, watchers)
 		</div>
 	</div>
+	<script>
+		(function() {
+			var slot = document.querySelector('.work-item-slot');
+			if (!slot) return;
+			var eventsURL = slot.getAttribute('data-events-url');
+			var workItemURL = slot.getAttribute('data-work-item-url');
+			var es = new EventSource(eventsURL);
+			es.onmessage = function() {
+				if (window.htmx) htmx.ajax('GET', workItemURL, {target: slot, swap: 'innerHTML'});
+			};
+			window.addEventListener('beforeunload', function() { es.close(); });
+		})();
+	</script>
 }
 
-templ ParticipantsList(participants []string) {
+templ ParticipantsList(players, watchers []string) {
 	<div class="card bg-base-200">
 		<div class="card-body">
-			<h2 class="card-title">In the room ({ participantCountStr(participants) })</h2>
+			<h2 class="card-title">In the room ({ totalCountStr(players, watchers) })</h2>
 			<ul class="menu">
-				for _, p := range participants {
+				for _, p := range players {
 					<li><a class="pointer-events-none">{ p }</a></li>
+				}
+				for _, w := range watchers {
+					<li><a class="pointer-events-none opacity-70">{ w } 👀</a></li>
 				}
 			</ul>
 		</div>

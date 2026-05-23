@@ -6,46 +6,93 @@ import (
 	"time"
 )
 
-type participantStore struct {
+type ParticipantStore struct {
 	mu       sync.RWMutex
-	bySess   map[string]map[string]time.Time
+	bySess   map[string]map[string]participantEntry
 	dbTable  string
 	hasDBVal func() bool
 }
 
-func newParticipantStore(table string) *participantStore {
-	return &participantStore{
-		bySess:   map[string]map[string]time.Time{},
+type participantEntry struct {
+	role   string
+	joined time.Time
+}
+
+func newParticipantStore(table string) *ParticipantStore {
+	return &ParticipantStore{
+		bySess:   map[string]map[string]participantEntry{},
 		dbTable:  table,
 		hasDBVal: func() bool { return DB != nil },
 	}
 }
 
-func (p *participantStore) Add(sessionID, name string) {
+func (p *ParticipantStore) Remove(sessionID, name string) {
+	if p.hasDBVal() {
+		_, _ = DB.Exec(
+			`DELETE FROM `+p.dbTable+` WHERE session_id = ? AND name = ?`,
+			sessionID, name,
+		)
+		return
+	}
+	p.mu.Lock()
+	if m, ok := p.bySess[sessionID]; ok {
+		delete(m, name)
+	}
+	p.mu.Unlock()
+}
+
+func (p *ParticipantStore) Add(sessionID, name string) {
+	p.AddWithRole(sessionID, name, "play")
+}
+
+func (p *ParticipantStore) AddWithRole(sessionID, name, role string) {
 	now := time.Now()
 	if p.hasDBVal() {
 		_, _ = DB.Exec(
-			`INSERT OR IGNORE INTO `+p.dbTable+` (session_id, name, joined_at) VALUES (?, ?, ?)`,
-			sessionID, name, now.Unix(),
+			`INSERT INTO `+p.dbTable+` (session_id, name, joined_at, role)
+			 VALUES (?, ?, ?, ?)
+			 ON CONFLICT(session_id, name) DO UPDATE SET role=excluded.role`,
+			sessionID, name, now.Unix(), role,
 		)
 		return
 	}
 	p.mu.Lock()
 	if _, ok := p.bySess[sessionID]; !ok {
-		p.bySess[sessionID] = map[string]time.Time{}
+		p.bySess[sessionID] = map[string]participantEntry{}
 	}
-	if _, exists := p.bySess[sessionID][name]; !exists {
-		p.bySess[sessionID][name] = now
+	if existing, exists := p.bySess[sessionID][name]; exists {
+		existing.role = role
+		p.bySess[sessionID][name] = existing
+	} else {
+		p.bySess[sessionID][name] = participantEntry{role: role, joined: now}
 	}
 	p.mu.Unlock()
 }
 
-func (p *participantStore) List(sessionID string) []string {
+func (p *ParticipantStore) List(sessionID string) []string {
+	return p.listFiltered(sessionID, "")
+}
+
+func (p *ParticipantStore) Players(sessionID string) []string {
+	return p.listFiltered(sessionID, "play")
+}
+
+func (p *ParticipantStore) Watchers(sessionID string) []string {
+	return p.listFiltered(sessionID, "watch")
+}
+
+func (p *ParticipantStore) listFiltered(sessionID, roleFilter string) []string {
 	if p.hasDBVal() {
-		rows, err := DB.Query(
-			`SELECT name FROM `+p.dbTable+` WHERE session_id = ? ORDER BY joined_at ASC`,
-			sessionID,
-		)
+		var query string
+		var args []any
+		if roleFilter == "" {
+			query = `SELECT name FROM ` + p.dbTable + ` WHERE session_id = ? ORDER BY joined_at ASC`
+			args = []any{sessionID}
+		} else {
+			query = `SELECT name FROM ` + p.dbTable + ` WHERE session_id = ? AND role = ? ORDER BY joined_at ASC`
+			args = []any{sessionID, roleFilter}
+		}
+		rows, err := DB.Query(query, args...)
 		if err != nil {
 			return nil
 		}
@@ -67,8 +114,11 @@ func (p *participantStore) List(sessionID string) []string {
 		at   time.Time
 	}
 	entries := make([]entry, 0, len(m))
-	for n, t := range m {
-		entries = append(entries, entry{n, t})
+	for n, e := range m {
+		if roleFilter != "" && e.role != roleFilter {
+			continue
+		}
+		entries = append(entries, entry{n, e.joined})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].at.Before(entries[j].at) })
 	names := make([]string, len(entries))

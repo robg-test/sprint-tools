@@ -6,9 +6,11 @@ import (
 )
 
 type WorkItem struct {
-	SessionID string
-	Summary   string
-	UpdatedAt time.Time
+	SessionID       string
+	Summary         string
+	Active          bool
+	CountdownUntil  time.Time
+	UpdatedAt       time.Time
 }
 
 type WorkItemStore struct {
@@ -27,14 +29,19 @@ func newWorkItemStore(table string) *WorkItemStore {
 func (s *WorkItemStore) Get(sessionID string) *WorkItem {
 	if DB != nil {
 		row := DB.QueryRow(
-			`SELECT summary, updated_at FROM `+s.dbTable+` WHERE session_id = ?`,
+			`SELECT summary, active, countdown_until, updated_at FROM `+s.dbTable+` WHERE session_id = ?`,
 			sessionID,
 		)
 		var w WorkItem
-		var updated int64
-		if err := row.Scan(&w.Summary, &updated); err == nil {
+		var updated, countdown int64
+		var active int
+		if err := row.Scan(&w.Summary, &active, &countdown, &updated); err == nil {
 			w.SessionID = sessionID
 			w.UpdatedAt = time.Unix(updated, 0)
+			w.Active = active == 1
+			if countdown > 0 {
+				w.CountdownUntil = time.Unix(countdown, 0)
+			}
 			return &w
 		}
 		return &WorkItem{SessionID: sessionID}
@@ -50,13 +57,22 @@ func (s *WorkItemStore) Get(sessionID string) *WorkItem {
 
 func (s *WorkItemStore) Set(w *WorkItem) {
 	w.UpdatedAt = time.Now()
+	active := 0
+	if w.Active {
+		active = 1
+	}
+	var countdown int64
+	if !w.CountdownUntil.IsZero() {
+		countdown = w.CountdownUntil.Unix()
+	}
 	if DB != nil {
 		_, _ = DB.Exec(
-			`INSERT INTO `+s.dbTable+` (session_id, summary, updated_at)
-			 VALUES (?, ?, ?)
+			`INSERT INTO `+s.dbTable+` (session_id, summary, active, countdown_until, updated_at)
+			 VALUES (?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO UPDATE SET
-			   summary=excluded.summary, updated_at=excluded.updated_at`,
-			w.SessionID, w.Summary, w.UpdatedAt.Unix(),
+			   summary=excluded.summary, active=excluded.active,
+			   countdown_until=excluded.countdown_until, updated_at=excluded.updated_at`,
+			w.SessionID, w.Summary, active, countdown, w.UpdatedAt.Unix(),
 		)
 		return
 	}

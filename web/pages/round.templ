@@ -1,0 +1,306 @@
+package pages
+
+import (
+	"strings"
+
+	"github.com/robgtest/sprint-tools/internal"
+)
+
+templ ActiveRound(item *internal.WorkItem, participants, watchers []string, voters map[string]bool, allVotes map[string]string, myVote string, isHost, canVote bool, endURL, refreshURL, countdownURL, voteURL, repointURL string, cards []string) {
+	{{ label, countdownActive, untilMs := computeCountdown(item.CountdownUntil) }}
+	{{ revealed := isRevealed(item.CountdownUntil) }}
+	<div
+		class="card bg-base-100 border border-base-300 shadow-md"
+		if !countdownActive {
+			hx-get={ refreshURL }
+			hx-trigger="every 2s"
+			hx-swap="outerHTML"
+		}
+	>
+		<div class="card-body p-3">
+			<div class="text-xs uppercase tracking-wide opacity-60">
+				if revealed {
+					Results
+				} else {
+					Now pointing
+				}
+			</div>
+			if item.Summary == "" {
+				<p class="text-lg italic opacity-60 mt-1">(no summary)</p>
+			} else {
+				<p class="text-lg whitespace-pre-wrap mt-1">{ item.Summary }</p>
+			}
+			if revealed {
+				@revealBoxes(voteBoxes(cards, allVotes))
+				@referenceLegend(cards)
+			} else {
+				@circleTable(participants, watchers, voters, label, countdownActive, untilMs, refreshURL, countdownURL, isHost)
+				if canVote {
+					@CardPicker(cards, myVote, voteURL)
+				}
+			}
+			if isHost {
+				<div class="card-actions justify-end mt-2">
+					if revealed {
+						<button
+							class="btn btn-sm btn-ghost"
+							hx-post={ endURL }
+							hx-target="closest .card"
+							hx-swap="outerHTML"
+						>← Back</button>
+						<button
+							class="btn btn-sm btn-outline"
+							hx-post={ repointURL }
+							hx-target="closest .card"
+							hx-swap="outerHTML"
+						>Repoint</button>
+						<button
+							class="btn btn-sm btn-primary"
+							hx-post={ endURL }
+							hx-target="closest .card"
+							hx-swap="outerHTML"
+						>Next Ticket</button>
+					} else {
+						<button
+							class="btn btn-sm btn-outline"
+							hx-post={ endURL }
+							hx-target="closest .card"
+							hx-swap="outerHTML"
+						>← Back</button>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ revealBoxes(boxes []VoteBox) {
+	<div class="flex flex-col gap-2 my-4 w-full">
+		if len(boxes) == 0 {
+			<p class="opacity-60 italic">No votes.</p>
+		}
+		for _, b := range boxes {
+			<div class="flex flex-row items-center gap-6 bg-base-200 border border-base-300 rounded-xl px-6 py-4 w-full">
+				<div class="text-3xl font-black w-16 text-center flex-shrink-0">{ b.Value }</div>
+				<div class="w-px self-stretch bg-base-300"></div>
+				<div class="flex-1 text-sm font-medium opacity-80">
+					if len(b.Voters) == 0 {
+						<span class="italic opacity-50">—</span>
+					} else {
+						{ strings.Join(b.Voters, ", ") }
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+templ CardPicker(cards []string, myVote, voteURL string) {
+	if len(cards) > 0 {
+		<div id="card-picker" class="flex flex-wrap justify-center gap-2 mt-2">
+			for _, c := range cards {
+				<button
+					type="button"
+					class={ "btn h-16 w-12 text-xl font-bold", cardSelectClass(c, myVote) }
+					hx-post={ voteURL }
+					hx-vals={ cardVoteVals(c) }
+					hx-target="#card-picker"
+					hx-swap="outerHTML"
+				>
+					{ c }
+				</button>
+			}
+		</div>
+	}
+}
+
+templ circleTable(participants, watchers []string, voters map[string]bool, countdownLabel string, countdownActive bool, untilMs, refreshURL, countdownURL string, isHost bool) {
+	{{ total := len(participants) + len(watchers) }}
+	<div class="flex justify-center my-2">
+		<div class="relative" style="width: 360px; height: 360px;">
+			<div class="absolute inset-0 rounded-full border-4 border-base-content/40"></div>
+			for i, p := range participants {
+				<div
+					class="absolute top-1/2 left-1/2 text-sm font-medium px-2 py-1 rounded bg-base-200 flex items-center gap-1"
+					style={ seatStyle(i, total) }
+				>
+					<span>{ p }</span>
+					if voters[p] {
+						<span class="text-success font-bold">✓</span>
+					}
+				</div>
+			}
+			for j, watcher := range watchers {
+				<div
+					class="absolute top-1/2 left-1/2 text-sm font-medium px-2 py-1 rounded bg-base-200 flex items-center gap-1 opacity-70"
+					style={ seatStyle(len(participants)+j, total) }
+				>
+					<span>{ watcher }</span>
+					<span>👀</span>
+				</div>
+			}
+			<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
+				if countdownActive {
+					<div
+						id="countdown-display"
+						hx-preserve="true"
+						class="countdown-display font-black text-primary drop-shadow-2xl select-none"
+						style="font-size: 7rem; line-height: 1;"
+						data-until={ untilMs }
+						data-refresh-url={ refreshURL }
+					>
+						<span style="display:inline-block;animation:countdownPop 0.25s ease-out">{ countdownLabel }</span>
+					</div>
+					<script>
+						(function(){
+							var nodes = document.querySelectorAll('.countdown-display');
+							var el = nodes[nodes.length - 1];
+							if(!el || el.dataset.started) return;
+							el.dataset.started = '1';
+							var until = parseInt(el.dataset.until, 10);
+							var refreshURL = el.dataset.refreshUrl;
+							var last = (el.querySelector('span') || {}).textContent || '';
+							function tick(){
+								var remMs = until - Date.now();
+								var label;
+								if(remMs > 0){ label = String(Math.ceil(remMs / 1000)); }
+								else if(remMs > -1500){ label = 'Pointed!'; }
+								else {
+									clearInterval(id);
+									var card = el.closest('.card');
+									if(card && window.htmx){ htmx.ajax('GET', refreshURL, {target: card, swap: 'outerHTML'}); }
+									return;
+								}
+								if(label !== last){
+									last = label;
+									el.innerHTML = '<span style="display:inline-block;animation:countdownPop 0.25s ease-out">'+label+'</span>';
+								}
+							}
+							var id = setInterval(tick, 80);
+							tick();
+						})();
+					</script>
+				} else if isHost {
+					<button
+						type="button"
+						class="btn btn-primary btn-lg rounded-full shadow-lg w-32"
+						hx-post={ countdownURL }
+						hx-target="closest .card"
+						hx-swap="outerHTML"
+					>
+						Countdown
+					</button>
+				}
+			</div>
+			if total == 0 {
+				<div class="absolute inset-x-0 bottom-0 text-center opacity-50 text-sm">
+					waiting for players...
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ referenceLegend(cards []string) {
+	if isOkNoHelpCards(cards) {
+		<details id="points-legend" hx-preserve="true" class="mt-3 opacity-80">
+			<summary class="text-xs uppercase tracking-wide cursor-pointer select-none opacity-60 hover:opacity-100">Grug reference</summary>
+			@okNoHelpTable()
+		</details>
+	} else {
+		<details id="points-legend" hx-preserve="true" class="mt-3 opacity-80">
+			<summary class="text-xs uppercase tracking-wide cursor-pointer select-none opacity-60 hover:opacity-100">Points reference</summary>
+			@pointsTable()
+		</details>
+	}
+}
+
+templ referenceTable(cards []string) {
+	if isOkNoHelpCards(cards) {
+		@okNoHelpTable()
+	} else {
+		@pointsTable()
+	}
+}
+
+templ okNoHelpTable() {
+	<div class="overflow-x-auto mt-2">
+		<table class="table table-xs text-center text-sm">
+			<thead>
+				<tr>
+					<th class="text-left opacity-60">Grug think</th>
+					<th>No.</th>
+					<th>Help</th>
+					<th>OK</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td class="text-left opacity-60 font-medium">Meaning</td>
+					<td>Cave bad. Grug not happy.</td>
+					<td>Grug brain too small. Need other brain.</td>
+					<td>It ok.</td>
+				</tr>
+				<tr>
+					<td class="text-left opacity-60 font-medium">What next</td>
+					<td>Stop. Talk. Make new plan.</td>
+					<td>Bigger brain come. Talk together.</td>
+					<td>Can do.</td>
+				</tr>
+				<tr>
+					<td class="text-left opacity-60 font-medium">Grug feel</td>
+					<td>Worry. Club nearby.</td>
+					<td>Confused. Scratch head.</td>
+					<td>Good Chance of shiny rock.</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+}
+
+templ pointsTable() {
+	<div class="overflow-x-auto mt-2">
+		<table class="table table-xs text-center text-sm">
+			<thead>
+				<tr>
+					<th class="text-left opacity-60">Dimension</th>
+					<th>1</th>
+					<th>2</th>
+					<th>3</th>
+					<th>5</th>
+					<th>8</th>
+					<th>13</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td class="text-left opacity-60 font-medium">Size</td>
+					<td>Tiny</td>
+					<td>Small</td>
+					<td>Modest</td>
+					<td>Medium</td>
+					<td>Large</td>
+					<td>Epic</td>
+				</tr>
+				<tr>
+					<td class="text-left opacity-60 font-medium">Complexity</td>
+					<td>Minimal</td>
+					<td>Low</td>
+					<td>Moderate</td>
+					<td>High</td>
+					<td>Very high</td>
+					<td>Extreme</td>
+				</tr>
+				<tr>
+					<td class="text-left opacity-60 font-medium">Risk</td>
+					<td>Very low</td>
+					<td>Low</td>
+					<td>Low</td>
+					<td>Medium</td>
+					<td>High</td>
+					<td>Very high — consider splitting</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+}
