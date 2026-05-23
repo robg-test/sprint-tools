@@ -1,0 +1,33 @@
+package pages
+
+import (
+	"github.com/robgtest/sprint-tools/internal"
+	"github.com/robgtest/sprint-tools/internal/static"
+	"github.com/robgtest/sprint-tools/web/components"
+)
+
+templ OkNoHelpSessionPage(theme, sessionURL, sessionID, name string, isHost bool, participants []string, workItem *internal.WorkItem) {
+	<html data-theme={ theme }>
+		<head>
+			<script src="https://unpkg.com/htmx.org@1.9.11" integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0" crossorigin="anonymous"></script>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>No. / Help / OK — Session</title>
+			<link href={ templ.URL("/styles.css?v=" + static.StylesCSSVersion) } rel="stylesheet"/>
+		</head>
+		<body>
+			<div class="flex flex-col min-h-screen gap-5">
+				@components.Navigation(theme)
+				<div id="content" class="flex flex-grow flex-col justify-center items-center px-4">
+					<img src="https://grugbrain.dev/grug.png" alt="grug" class="w-32 h-32 object-contain mb-4"/>
+					if name == "" {
+						@nameForm("/ok-no/"+sessionID+"/name", "No. / Help / OK")
+					} else {
+						@sessionRoom("No. / Help / OK", name, sessionURL, sessionID, isHost, participants, "/ok-no/"+sessionID+"/participants", "/ok-no/"+sessionID+"/work-item", workItem)
+					}
+				</div>
+				@components.Footer()
+			</div>
+		</body>
+	</html>
+}

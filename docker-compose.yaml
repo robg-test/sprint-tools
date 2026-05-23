@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  sprint-tools:
+    environment:
+      - CERT_PATH=/app/fullchain.pem
+      - KEY_PATH=/app/privkey.pem
+      - REDIS_HOST=redis
+      - TURSO_DATABASE
+    image: ghcr.io/robg-test/sprint-tools:latest
+    ports:
+      - "443:443"
+    volumes:
+      - ${CERT_PATH}:/app/fullchain.pem
+      - ${KEY_PATH}:/app/privkey.pem
+    networks:
+      - sprint-tools-network
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - sprint-tools-network
+
+networks:
+  sprint-tools-network:
+    driver: bridge

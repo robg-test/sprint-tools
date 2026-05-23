@@ -1,0 +1,81 @@
+package pages
+
+import "github.com/robgtest/sprint-tools/internal"
+
+templ nameForm(action, title string) {
+	<h1 class="text-4xl font-bold mb-2">{ title }</h1>
+	<p class="opacity-70 mb-6">Enter your name to join.</p>
+	<form method="post" action={ templ.URL(action) } class="flex gap-2 w-full max-w-md">
+		<input
+			type="text"
+			name="name"
+			required
+			maxlength="40"
+			autofocus
+			placeholder="Your name"
+			class="input input-bordered flex-1"
+		/>
+		<button type="submit" class="btn btn-primary">Join</button>
+	</form>
+}
+
+templ sessionRoom(title, name, sessionURL, sessionID string, isHost bool, participants []string, participantsURL, workItemURL string, workItem *internal.WorkItem) {
+	<h1 class="text-4xl font-bold mb-2">{ title }</h1>
+	<p class="opacity-70 mb-6">Welcome, <span class="font-semibold">{ name }</span>.</p>
+	if isHost {
+		<div class="w-full max-w-3xl mb-6">
+			<label class="block text-sm opacity-70 mb-1">Share this link to invite others:</label>
+			<div class="join w-full">
+				<input
+					id="share-link"
+					type="text"
+					readonly
+					value={ sessionURL }
+					class="input input-bordered join-item flex-1"
+				/>
+				<button
+					type="button"
+					class="btn btn-primary join-item"
+					onclick="navigator.clipboard.writeText(document.getElementById('share-link').value); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy',1500)"
+				>
+					Copy
+				</button>
+			</div>
+		</div>
+	}
+	<div class="w-full max-w-3xl grid grid-cols-1 lg:grid-cols-3 gap-4">
+		<div class="lg:col-span-2">
+			if isHost {
+				@WorkItemForm(workItem, workItemURL)
+			} else {
+				<div
+					hx-get={ workItemURL }
+					hx-trigger="load delay:3s, every 3s"
+					hx-swap="innerHTML"
+				>
+					@WorkItemCard(workItem)
+				</div>
+			}
+		</div>
+		<div
+			hx-get={ participantsURL }
+			hx-trigger="load delay:3s, every 3s"
+			hx-swap="innerHTML"
+		>
+			@ParticipantsList(participants)
+		</div>
+	</div>
+}
+
+templ ParticipantsList(participants []string) {
+	<div class="card bg-base-200">
+		<div class="card-body">
+			<h2 class="card-title">In the room ({ participantCountStr(participants) })</h2>
+			<ul class="menu">
+				for _, p := range participants {
+					<li><a class="pointer-events-none">{ p }</a></li>
+				}
+			</ul>
+		</div>
+	</div>
+}

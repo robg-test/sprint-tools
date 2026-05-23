@@ -1,0 +1,40 @@
+package pages
+
+import "github.com/robgtest/sprint-tools/internal"
+
+templ WorkItemCard(item *internal.WorkItem) {
+	<div class="card bg-base-100 border border-base-300 shadow-md">
+		<div class="card-body p-5">
+			<div class="text-xs uppercase tracking-wide opacity-60">Summary</div>
+			if item.Summary == "" {
+				<p class="opacity-50 italic mt-1">No summary set.</p>
+			} else {
+				<p class="text-lg whitespace-pre-wrap mt-1">{ item.Summary }</p>
+			}
+		</div>
+	</div>
+}
+
+templ WorkItemForm(item *internal.WorkItem, saveURL string) {
+	<form
+		class="card bg-base-100 border border-base-300 shadow-md"
+		hx-post={ saveURL }
+		hx-swap="outerHTML"
+	>
+		<div class="card-body p-5 gap-2">
+			<label class="form-control">
+				<span class="label-text text-xs uppercase opacity-70">Summary</span>
+				<div class="join w-full">
+					<input
+						name="summary"
+						type="text"
+						value={ item.Summary }
+						placeholder="What are we discussing?"
+						class="input input-bordered join-item flex-1"
+					/>
+					<button type="submit" class="btn btn-primary join-item">Start</button>
+				</div>
+			</label>
+		</div>
+	</form>
+}

@@ -1,0 +1,9 @@
+node_modules/
+.git/
+.idea/
+tmp/
+*.db
+sprint-tools
+*_templ.go
+web/static/css/output.css
+vendor/

@@ -1,0 +1,12 @@
+.idea/
+*.db
+.sqllsrc.json
+*_templ.go
+*_templ.txt
+**__debug_bin*
+delve.pid
+tmp/build-errors.log
+vendor
+node_modules
+sprint-tools
+web/static/css/output.css
