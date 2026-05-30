@@ -15,10 +15,6 @@ templ ActiveRound(item *internal.WorkItem, participants, watchers []string, vote
 			hx-get={ refreshURL }
 			hx-trigger="every 2s"
 			hx-swap="outerHTML"
-		} else if label == "Pointed!" {
-			hx-get={ refreshURL }
-			hx-trigger="every 1s"
-			hx-swap="outerHTML"
 		}
 	>
 		<div class="card-body p-3">
@@ -151,30 +147,30 @@ templ circleTable(participants, watchers []string, voters map[string]bool, count
 					</div>
 					<script>
 						(function(){
-							var nodes = document.querySelectorAll('.countdown-display');
-							var el = nodes[nodes.length - 1];
-							if(!el || el.dataset.started) return;
-							el.dataset.started = '1';
-							var until = parseInt(el.dataset.until, 10);
-							var refreshURL = el.dataset.refreshUrl;
-							var last = (el.querySelector('span') || {}).textContent || '';
+							var disp = document.querySelector('#countdown-display');
+							if(!disp) return;
+							var until = parseInt(disp.dataset.until, 10);
+							if(window.__cd && window.__cd.until === until) return;
+							if(window.__cd) clearInterval(window.__cd.id);
+							var ctrl = window.__cd = { until: until, last: (disp.querySelector('span') || {}).textContent || null, id: 0, refresh: disp.dataset.refreshUrl };
 							function tick(){
+								var el = document.querySelector('.countdown-display');
+								if(!el){ clearInterval(ctrl.id); if(window.__cd === ctrl) window.__cd = null; return; }
 								var remMs = until - Date.now();
-								var label;
-								if(remMs > 0){ label = String(Math.ceil(remMs / 1000)); }
-								else if(remMs > -1500){ label = 'Pointed!'; }
-								else {
-									clearInterval(id);
+								if(remMs <= -1500){
+									clearInterval(ctrl.id);
+									if(window.__cd === ctrl) window.__cd = null;
 									var card = el.closest('.card');
-									if(card && window.htmx){ htmx.ajax('GET', refreshURL, {target: card, swap: 'outerHTML'}); }
+									if(card && window.htmx){ htmx.ajax('GET', ctrl.refresh, {target: card, swap: 'outerHTML'}); }
 									return;
 								}
-								if(label !== last){
-									last = label;
+								var label = remMs > 0 ? String(Math.ceil(remMs / 1000)) : 'Pointed!';
+								if(label !== ctrl.last){
+									ctrl.last = label;
 									el.innerHTML = '<span style="display:inline-block;animation:countdownPop 0.25s ease-out">'+label+'</span>';
 								}
 							}
-							var id = setInterval(tick, 80);
+							ctrl.id = setInterval(tick, 80);
 							tick();
 						})();
 					</script>
