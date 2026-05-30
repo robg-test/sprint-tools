@@ -6,7 +6,7 @@ import (
 	"github.com/robgtest/sprint-tools/internal"
 )
 
-templ ActiveRound(item *internal.WorkItem, participants, watchers []string, voters map[string]bool, allVotes map[string]string, myVote string, isHost, canVote bool, endURL, refreshURL, countdownURL, voteURL, repointURL string, cards []string) {
+templ ActiveRound(item *internal.WorkItem, participants, watchers []string, voters map[string]bool, allVotes map[string]string, myVote string, isHost, canVote bool, endURL, refreshURL, countdownURL, cancelCountdownURL, voteURL, repointURL string, cards []string) {
 	{{ label, countdownActive, untilMs := computeCountdown(item.CountdownUntil) }}
 	{{ revealed := isRevealed(item.CountdownUntil) }}
 	<div
@@ -14,6 +14,10 @@ templ ActiveRound(item *internal.WorkItem, participants, watchers []string, vote
 		if !countdownActive {
 			hx-get={ refreshURL }
 			hx-trigger="every 2s"
+			hx-swap="outerHTML"
+		} else if label == "Pointed!" {
+			hx-get={ refreshURL }
+			hx-trigger="every 1s"
 			hx-swap="outerHTML"
 		}
 	>
@@ -34,7 +38,7 @@ templ ActiveRound(item *internal.WorkItem, participants, watchers []string, vote
 				@revealBoxes(voteBoxes(cards, allVotes))
 				@referenceLegend(cards)
 			} else {
-				@circleTable(participants, watchers, voters, label, countdownActive, untilMs, refreshURL, countdownURL, isHost)
+				@circleTable(participants, watchers, voters, label, countdownActive, untilMs, refreshURL, countdownURL, cancelCountdownURL, isHost)
 				if canVote {
 					@CardPicker(cards, myVote, voteURL)
 				}
@@ -44,16 +48,10 @@ templ ActiveRound(item *internal.WorkItem, participants, watchers []string, vote
 					if revealed {
 						<button
 							class="btn btn-sm btn-ghost"
-							hx-post={ endURL }
-							hx-target="closest .card"
-							hx-swap="outerHTML"
-						>← Back</button>
-						<button
-							class="btn btn-sm btn-outline"
 							hx-post={ repointURL }
 							hx-target="closest .card"
 							hx-swap="outerHTML"
-						>Repoint</button>
+						>← Back</button>
 						<button
 							class="btn btn-sm btn-primary"
 							hx-post={ endURL }
@@ -114,7 +112,7 @@ templ CardPicker(cards []string, myVote, voteURL string) {
 	}
 }
 
-templ circleTable(participants, watchers []string, voters map[string]bool, countdownLabel string, countdownActive bool, untilMs, refreshURL, countdownURL string, isHost bool) {
+templ circleTable(participants, watchers []string, voters map[string]bool, countdownLabel string, countdownActive bool, untilMs, refreshURL, countdownURL, cancelCountdownURL string, isHost bool) {
 	{{ total := len(participants) + len(watchers) }}
 	<div class="flex justify-center my-2">
 		<div class="relative" style="width: 360px; height: 360px;">
@@ -192,7 +190,19 @@ templ circleTable(participants, watchers []string, voters map[string]bool, count
 					</button>
 				}
 			</div>
-			if total == 0 {
+			if countdownActive && isHost {
+				<div class="absolute inset-x-0 bottom-16 flex justify-center">
+					<button
+						type="button"
+						class="btn btn-sm btn-error btn-outline rounded-full shadow"
+						hx-post={ cancelCountdownURL }
+						hx-target="closest .card"
+						hx-swap="outerHTML"
+					>
+						Stop
+					</button>
+				</div>
+			} else if total == 0 {
 				<div class="absolute inset-x-0 bottom-0 text-center opacity-50 text-sm">
 					waiting for players...
 				</div>

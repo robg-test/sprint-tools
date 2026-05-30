@@ -4,7 +4,7 @@ import "github.com/robgtest/sprint-tools/internal"
 
 templ WorkItemSlot(item *internal.WorkItem, participants, watchers []string, voters map[string]bool, allVotes map[string]string, myVote string, isHost, canVote bool, baseURL string, cards []string) {
 	if item.Active {
-		@ActiveRound(item, participants, watchers, voters, allVotes, myVote, isHost, canVote, baseURL+"/end", baseURL, baseURL+"/countdown", baseURL+"/vote", baseURL+"/repoint", cards)
+		@ActiveRound(item, participants, watchers, voters, allVotes, myVote, isHost, canVote, baseURL+"/end", baseURL, baseURL+"/countdown", baseURL+"/cancel-countdown", baseURL+"/vote", baseURL+"/repoint", cards)
 	} else if isHost {
 		@WorkItemForm(item, baseURL, baseURL+"/summary", cards)
 	} else {

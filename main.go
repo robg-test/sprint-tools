@@ -257,6 +257,19 @@ func setupPageHandlers(router *chi.Mux) {
 		startCountdown(w, r, id, internal.StoryPointingWorkItems, internal.StoryPointingParticipants, internal.StoryPointingVotes, "/story-pointing/"+id+"/work-item", pages.StoryPointingCards, "sp")
 	})
 
+	router.Post("/story-pointing/{id}/work-item/cancel-countdown", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if _, ok := internal.GetStoryPointingSession(id); !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if internal.GetMessage("sp:"+id+":host", r) != "1" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		cancelCountdown(w, r, id, internal.StoryPointingWorkItems, internal.StoryPointingParticipants, internal.StoryPointingVotes, "/story-pointing/"+id+"/work-item", pages.StoryPointingCards, "sp")
+	})
+
 	router.Post("/story-pointing/{id}/work-item/vote", func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
 		if _, ok := internal.GetStoryPointingSession(id); !ok {
@@ -347,6 +360,19 @@ func setupPageHandlers(router *chi.Mux) {
 			return
 		}
 		startCountdown(w, r, id, internal.OkNoHelpWorkItems, internal.OkNoHelpParticipants, internal.OkNoHelpVotes, "/ok-no/"+id+"/work-item", pages.OkNoHelpCards, "on")
+	})
+
+	router.Post("/ok-no/{id}/work-item/cancel-countdown", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if _, ok := internal.GetOkNoHelpSession(id); !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if internal.GetMessage("on:"+id+":host", r) != "1" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		cancelCountdown(w, r, id, internal.OkNoHelpWorkItems, internal.OkNoHelpParticipants, internal.OkNoHelpVotes, "/ok-no/"+id+"/work-item", pages.OkNoHelpCards, "on")
 	})
 
 	router.Post("/ok-no/{id}/work-item/vote", func(w http.ResponseWriter, r *http.Request) {
@@ -505,6 +531,16 @@ func startCountdown(w http.ResponseWriter, r *http.Request, id string, store *in
 		return
 	}
 	item.CountdownUntil = time.Now().Add(3 * time.Second)
+	store.Set(item)
+	internal.SessionEvents.Notify(id)
+	name := internal.GetMessage(namePrefix+":"+id+":name", r)
+	canVote := internal.GetMessage(namePrefix+":"+id+":role", r) != "watch" && name != ""
+	templ.Handler(pages.WorkItemSlot(item, parts.Players(id), parts.Watchers(id), votes.Voters(id), votes.All(id), votes.Get(id, name), true, canVote, baseURL, cards)).ServeHTTP(w, r)
+}
+
+func cancelCountdown(w http.ResponseWriter, r *http.Request, id string, store *internal.WorkItemStore, parts *internal.ParticipantStore, votes *internal.VoteStore, baseURL string, cards []string, namePrefix string) {
+	item := store.Get(id)
+	item.CountdownUntil = time.Time{}
 	store.Set(item)
 	internal.SessionEvents.Notify(id)
 	name := internal.GetMessage(namePrefix+":"+id+":name", r)
