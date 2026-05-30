@@ -80,8 +80,8 @@ templ revealBoxes(boxes []VoteBox) {
 			<p class="opacity-60 italic">No votes.</p>
 		}
 		for _, b := range boxes {
-			<div class="flex flex-row items-center gap-6 bg-base-200 border border-base-300 rounded-xl px-6 py-4 w-full">
-				<div class="text-3xl font-black w-16 text-center flex-shrink-0">{ b.Value }</div>
+			<div class={ "flex flex-row items-center gap-6 border rounded-xl px-6 py-4 w-full", outlierBoxClass(b.Outlier) }>
+				<div class={ "text-3xl font-black w-16 text-center flex-shrink-0", outlierValueClass(b.Outlier) }>{ b.Value }</div>
 				<div class="w-px self-stretch bg-base-300"></div>
 				<div class="flex-1 text-sm font-medium opacity-80">
 					if len(b.Voters) == 0 {

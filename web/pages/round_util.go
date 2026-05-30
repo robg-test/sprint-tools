@@ -9,8 +9,9 @@ import (
 )
 
 type VoteBox struct {
-	Value  string
-	Voters []string
+	Value   string
+	Voters  []string
+	Outlier bool
 }
 
 func isRevealed(until time.Time) bool {
@@ -37,11 +38,35 @@ func voteBoxes(cards []string, allVotes map[string]string) []VoteBox {
 	if minIdx == -1 {
 		return nil
 	}
+	totalVoters := len(allVotes)
+	hasMajority := false
+	for _, voters := range byCard {
+		if len(voters) >= 2 {
+			hasMajority = true
+			break
+		}
+	}
 	boxes := make([]VoteBox, 0, maxIdx-minIdx+1)
 	for i := minIdx; i <= maxIdx; i++ {
-		boxes = append(boxes, VoteBox{Value: cards[i], Voters: byCard[cards[i]]})
+		voters := byCard[cards[i]]
+		outlier := totalVoters > 2 && hasMajority && len(voters) == 1 && (i == minIdx || i == maxIdx)
+		boxes = append(boxes, VoteBox{Value: cards[i], Voters: voters, Outlier: outlier})
 	}
 	return boxes
+}
+
+func outlierBoxClass(outlier bool) string {
+	if outlier {
+		return "bg-error/10 border-error/60"
+	}
+	return "bg-base-200 border-base-300"
+}
+
+func outlierValueClass(outlier bool) string {
+	if outlier {
+		return "text-error"
+	}
+	return ""
 }
 
 func cardSelectClass(card, myVote string) string {
